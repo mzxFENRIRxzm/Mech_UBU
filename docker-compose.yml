@@ -1,0 +1,75 @@
+# ============================================
+# MECH UBU — Docker Compose
+# Frontend (Next.js) + Backend (Django) + PostgreSQL
+# ============================================
+
+services:
+  # --- PostgreSQL Database ---
+  db:
+    image: postgres:16-alpine
+    container_name: mechubu-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: mechubu_db
+      POSTGRES_USER: mechubu_user
+      POSTGRES_PASSWORD: mechubu_pass_2024
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mechubu_user -d mechubu_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # --- Django Backend API ---
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: mechubu-backend
+    restart: unless-stopped
+    environment:
+      SECRET_KEY: mech-ubu-docker-secret-key-2024
+      DEBUG: "True"
+      ALLOWED_HOSTS: localhost,127.0.0.1,backend
+      DATABASE_URL: postgres://mechubu_user:mechubu_pass_2024@db:5432/mechubu_db
+      CORS_ALLOWED_ORIGINS: http://localhost:3000,http://localhost:8000
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+      - backend_media:/app/media
+
+  # --- Next.js Frontend ---
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: mechubu-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+  # --- Ngrok Tunnel (Expose Frontend to Public) ---
+  ngrok_frontend:
+    image: ngrok/ngrok:latest
+    container_name: mechubu-ngrok
+    restart: unless-stopped
+    command: http frontend:3000
+    environment:
+      - NGROK_AUTHTOKEN=3827fo6SKeWSfmevwL9jCWEurlE_7fQrMhD3gCoRb8s4tFKKK
+    ports:
+      - "4040:4040"
+    depends_on:
+      - frontend
+
+volumes:
+  postgres_data:
+  backend_media:
